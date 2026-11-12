@@ -1,0 +1,33 @@
+name: Build AdminBro firmware
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install PlatformIO + esptool
+        run: pip install platformio esptool
+      - name: Build
+        run: pio run
+      - name: Merge into one flashable bin (flash at 0x0)
+        run: |
+          B=.pio/build/adminbro
+          APP0=$(find ~/.platformio/packages/framework-arduinoespressif32 -name boot_app0.bin | head -n1)
+          esptool.py --chip esp32s3 merge_bin -o adminbro_bot_merged.bin \
+            --flash_mode dio --flash_freq 80m --flash_size 16MB \
+            0x0 $B/bootloader.bin \
+            0x8000 $B/partitions.bin \
+            0xe000 "$APP0" \
+            0x10000 $B/firmware.bin
+          ls -la adminbro_bot_merged.bin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adminbro_bot_merged
+          path: adminbro_bot_merged.bin
